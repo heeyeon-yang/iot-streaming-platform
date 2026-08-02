@@ -1,0 +1,13 @@
+{
+  "name": "ingestion-api",
+  "version": "1.0.0",
+  "description": "Receives sensor readings from simulated IoT devices and forwards them to Kinesis",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-kinesis": "^3.632.0",
+    "express": "^4.19.2"
+  }
+}
