@@ -1,0 +1,125 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ingestion-api
+  namespace: iot-streaming
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ingestion-api
+  template:
+    metadata:
+      labels:
+        app: ingestion-api
+    spec:
+      serviceAccountName: ingestion-api
+      containers:
+        - name: ingestion-api
+          image: 130954244866.dkr.ecr.ap-northeast-2.amazonaws.com/iot-streaming-platform/ingestion-api:latest
+          ports:
+            - containerPort: 3000
+          envFrom:
+            - configMapRef:
+                name: iot-streaming-config
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: read-api
+  namespace: iot-streaming
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: read-api
+  template:
+    metadata:
+      labels:
+        app: read-api
+    spec:
+      serviceAccountName: read-api
+      containers:
+        - name: read-api
+          image: 130954244866.dkr.ecr.ap-northeast-2.amazonaws.com/iot-streaming-platform/read-api:latest
+          ports:
+            - containerPort: 3001
+          envFrom:
+            - configMapRef:
+                name: iot-streaming-config
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: stream-processor
+  namespace: iot-streaming
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: stream-processor
+  template:
+    metadata:
+      labels:
+        app: stream-processor
+    spec:
+      serviceAccountName: stream-processor
+      containers:
+        - name: stream-processor
+          image: 130954244866.dkr.ecr.ap-northeast-2.amazonaws.com/iot-streaming-platform/stream-processor:latest
+          envFrom:
+            - configMapRef:
+                name: iot-streaming-config
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alerting-service
+  namespace: iot-streaming
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: alerting-service
+  template:
+    metadata:
+      labels:
+        app: alerting-service
+    spec:
+      serviceAccountName: alerting-service
+      containers:
+        - name: alerting-service
+          image: 130954244866.dkr.ecr.ap-northeast-2.amazonaws.com/iot-streaming-platform/alerting-service:latest
+          envFrom:
+            - configMapRef:
+                name: iot-streaming-config
+            - secretRef:
+                name: alerting-secrets
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
