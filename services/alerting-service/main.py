@@ -2,6 +2,7 @@ import json
 import os
 import time
 import urllib.request
+from collections import deque
 
 import boto3
 
@@ -20,6 +21,27 @@ THRESHOLDS = {
 }
 
 kinesis = boto3.client("kinesis", region_name=AWS_REGION)
+
+# Rolling restarts briefly run old and new pods side by side, and both call
+# get_shard_iterator with LATEST independently. That can hand out overlapping
+# records for a few seconds around the restart. Track recently-seen sequence
+# numbers to drop duplicates instead of double-alerting.
+DEDUP_WINDOW_SIZE = 500
+_seen_sequence_numbers = deque(maxlen=DEDUP_WINDOW_SIZE)
+_seen_sequence_number_set = set()
+
+
+def is_duplicate(sequence_number):
+    if sequence_number in _seen_sequence_number_set:
+        return True
+
+    if len(_seen_sequence_numbers) == DEDUP_WINDOW_SIZE:
+        oldest = _seen_sequence_numbers.popleft()
+        _seen_sequence_number_set.discard(oldest)
+
+    _seen_sequence_numbers.append(sequence_number)
+    _seen_sequence_number_set.add(sequence_number)
+    return False
 
 
 def get_shard_iterators():
@@ -74,6 +96,9 @@ def check_threshold(reading):
 
 
 def process_record(record):
+    if is_duplicate(record["SequenceNumber"]):
+        return
+
     payload = json.loads(record["Data"])
 
     required_fields = ("deviceId", "sensorType", "value")
