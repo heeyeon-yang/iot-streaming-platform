@@ -19,3 +19,34 @@
 - Slack Webhook 아직 미발급, 발급되면 secret 값 교체
 - alerting-service 알림 중복 발생 가능성 있음 (LATEST iterator + 5초 폴링 경계에서 같은 record 두 번 잡힘) -> sequence number 기억해서 dedup 필요, 아직 미처리
 - (Phase 2 후순위) ArgoCD, Prometheus/Grafana
+
+## Terraform state 분리 (ECR 별도 관리)
+- 문제: terraform destroy 시 aws_ecr_repository도 같이 삭제되어 매 세션마다 이미지 재빌드/재푸시 필요했음
+- 해결: ECR 관련 리소스(aws_ecr_repository.services, aws_ecr_lifecycle_policy.services)를
+  terraform/ecr.tf에서 별도 디렉토리 terraform-ecr/로 분리
+- terraform state mv로 기존 리소스를 새 state로 이동 (실제 AWS 자원은 재생성 없이 그대로 유지, 이미지도 안 날아감)
+- 앞으로 세션 루틴:
+  - 시작: terraform/ 에서만 terraform apply (EKS, VPC, Kinesis, DynamoDB)
+  - 종료: terraform/ 에서만 terraform destroy
+  - terraform-ecr/ 는 프로젝트 끝날 때까지 destroy 하지 않음
+- 코드 안 바뀐 서비스는 이제 재빌드/재푸시 불필요 (이미지가 ECR에 계속 남아있음)
+
+## Alerting 중복 알림 dedup 처리 (해결됨)
+- 원인: kubectl rollout restart 시 old/new 파드가 잠깐 동시에 떠 있는 동안,
+  둘 다 독립적으로 LATEST shard iterator를 얻어와서 겹치는 시간대 record를 각자 처리 -> 중복 알림
+- 해결: alerting-service main.py에 SequenceNumber 기준 in-memory dedup 추가
+  (deque + set, 최근 500개 기억, 이미 처리한 sequence number는 skip)
+- 단일 프로세스 재시작(크래시 등)에는 영향 없음 - 그 경우 파드가 겹치지 않으므로 애초에 중복 위험 없음
+- 완전한 크로스 프로세스 dedup(DynamoDB 조건부 쓰기)은 포트폴리오 규모에서 과함 -> 인메모리 방식으로 충분하다고 판단
+- 검증: temperature=85 수동 전송 -> 경고 로그 1회만 출력 확인
+
+## Slack Webhook 연동 (해결됨)
+- Slack app 생성 -> Incoming Webhooks 활성화 -> #iot-alerts 채널에 연동
+- k8s/secret-alerting.yaml의 SLACK_WEBHOOK_URL을 실제 값으로 교체 (base64 -w 0 사용, 개행 포함 시 sed 깨지는 이슈 있었음)
+- secret-alerting.yaml은 git에 커밋된 적 있었으나 placeholder 값만 올라가 있었음 확인 후
+  git rm --cached로 추적 해제, .gitignore에 추가하여 앞으로 실제 값 노출 방지
+- 검증: temperature=85 수동 전송 -> #iot-alerts 채널에 정상 수신 확인
+
+## Milestone 3 마무리
+- 파이프라인 전체(ingestion-api -> Kinesis -> stream-processor -> DynamoDB -> alerting-service -> Slack) 정상 동작 확인
+- ECR state 분리로 세션 재시작 루틴 안정화
