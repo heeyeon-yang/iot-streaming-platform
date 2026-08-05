@@ -55,3 +55,4 @@ venv/
 # Environment files
 .env
 .env.local
+k8s/secret-alerting.yaml
