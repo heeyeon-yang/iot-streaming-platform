@@ -50,3 +50,12 @@
 ## Milestone 3 마무리
 - 파이프라인 전체(ingestion-api -> Kinesis -> stream-processor -> DynamoDB -> alerting-service -> Slack) 정상 동작 확인
 - ECR state 분리로 세션 재시작 루틴 안정화
+
+## read-api DynamoDB 연동 (해결됨)
+- 기존 코드는 mock 데이터 반환하는 placeholder 상태였음 (대시보드 프론트엔드 개발용으로 의도된 것)
+- @aws-sdk/client-dynamodb, @aws-sdk/lib-dynamodb 추가
+- /readings: deviceId 쿼리 파라미터 있으면 QueryCommand, 없으면 ScanCommand
+- /devices: ScanCommand + ProjectionExpression으로 device_id만 추출, Set으로 중복 제거
+- 검증 중 발견: sensor-readings 테이블이 ECR과 달리 별도 state로 분리 안 되어 있어서
+  terraform destroy/apply 사이클마다 테이블이 비워짐 -> simulator.sh로 재시딩 후 20건 정상 조회 확인
+- 참고: dynamodb 테이블도 ECR처럼 별도 state로 분리할지는 아직 미정 (테스트 데이터라 매번 새로 채워도 되는 관점도 있음)
