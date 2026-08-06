@@ -59,3 +59,9 @@
 - 검증 중 발견: sensor-readings 테이블이 ECR과 달리 별도 state로 분리 안 되어 있어서
   terraform destroy/apply 사이클마다 테이블이 비워짐 -> simulator.sh로 재시딩 후 20건 정상 조회 확인
 - 참고: dynamodb 테이블도 ECR처럼 별도 state로 분리할지는 아직 미정 (테스트 데이터라 매번 새로 채워도 되는 관점도 있음)
+
+## 세션 재개 후 재검증
+- terraform apply로 인프라 재생성, k8s/ 재배포
+- namespace.yaml이 없어서 kubectl create namespace 수동 실행 필요했음 (다음에 k8s/에 추가 고려)
+- DynamoDB state 분리는 보류. 테스트 데이터라 재시딩으로 충분
+- simulator.sh 재시딩 후 read-api 조회 정상 (38건)
