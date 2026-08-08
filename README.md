@@ -8,6 +8,12 @@ QuizLab (Project 1) was built entirely on managed, serverless AWS — Lambda, RD
 
 VPC and EKS cluster boundaries are drawn as they actually are: Kinesis and DynamoDB sit outside the VPC, since nothing here uses VPC endpoints for them — pods reach both over their public endpoints through the NAT gateway.
 
+## Architecture
+
+<p align="center">
+  <img src="docs/iot_diagram.png" alt="Architecture Diagram" width="80%">
+</p>
+
 ## How it works
 
 Four services sit in one EKS cluster, one namespace:
