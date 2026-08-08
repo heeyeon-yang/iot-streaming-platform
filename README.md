@@ -1,34 +1,38 @@
 # iot-streaming-platform
 
-IoT sensor data pipeline running on EKS — devices push readings in, Kinesis moves them through, and a set of containerized services process, store, and alert on them. Built on AWS (ap-northeast-2) with Terraform.
-
-Status: work in progress. Infrastructure and all four services are deployed; still debugging the Kinesis → DynamoDB read path.
+IoT sensor data pipeline running on Kubernetes — devices push readings in, Kinesis moves them through, and four containerized services process, store, and alert on them. Built on AWS (ap-northeast-2) with Terraform.
 
 ## Why I built this
 
-QuizLab was managed and serverless — Lambda, RDS, ElastiCache. This one runs on self-managed containers on Kubernetes instead. Different infrastructure model, same underlying AWS skill set.
+QuizLab (Project 1) was built entirely on managed, serverless AWS — Lambda, RDS, ElastiCache. This project picks up what QuizLab didn't touch: containers, Kubernetes, and self-managed orchestration.
 
-## Architecture
+VPC and EKS cluster boundaries are drawn as they actually are: Kinesis and DynamoDB sit outside the VPC, since nothing here uses VPC endpoints for them — pods reach both over their public endpoints through the NAT gateway.
 
-Four services on EKS, one namespace:
+## How it works
 
-- **ingestion-api** (Node/Express) — receives sensor readings over HTTP, writes them to Kinesis
-- **stream-processor** (Python) — polls Kinesis, persists readings to DynamoDB
-- **alerting-service** (Python) — polls Kinesis independently, checks readings against a threshold, fires a Slack webhook when exceeded
-- **read-api** (Node/Express) — read-only endpoint over DynamoDB for the dashboard
+Four services sit in one EKS cluster, one namespace:
 
-API-facing services are Node; processing/decision services are Python.
+- **ingestion-api** (Node/Express) — receives sensor readings over HTTP and writes them to Kinesis
+- **stream-processor** (Python) — polls the Kinesis stream and persists readings to DynamoDB
+- **alerting-service** (Python) — polls Kinesis independently, checks readings against a threshold, and fires a Slack webhook when one is exceeded
+- **read-api** (Node/Express) — read-only endpoint over DynamoDB for a dashboard frontend
 
-Everything sits in its own VPC (separate from QuizLab's), inside a single EKS cluster with one managed node group. Each service has its own IAM role scoped to exactly what it needs via IRSA, rather than one shared node role with broad permissions.
+API-facing services are Node, processing/decision services are Python. stream-processor and alerting-service each open their own Kinesis iterator rather than sharing a single reader — simpler than coordinating two consumers off one stream position, at the cost of each service re-reading the same records independently.
 
-Devices themselves are simulated with a local script — no real hardware involved.
+Devices themselves are simulated with a local script (`simulator.sh`) — no real hardware involved.
 
 ## Infrastructure
 
-One Terraform directory covers VPC, EKS, ECR, DynamoDB, Kinesis, and the IAM roles for IRSA. Kubernetes manifests (namespace, service accounts, deployments, services) are plain YAML applied by hand for now. ArgoCD is next.
+Terraform covers VPC, EKS (managed node group, t3.small, 1–3 nodes), Kinesis, DynamoDB, and IRSA roles — each service gets IAM permissions scoped to only what it needs instead of one shared node role. ECR lives in its own Terraform directory with separate state, so the compute layer (VPC, EKS) can be destroyed and rebuilt every session without rebuilding container images each time.
+
+Kubernetes manifests (service accounts, deployments, services, configmap) are plain YAML applied by hand for now. Namespace creation is still a manual `kubectl create namespace` step rather than its own manifest.
+
+## Why some things are built the way they are
+
+**No shared consumer coordination on Kinesis.** stream-processor and alerting-service both read from LATEST independently. During a `kubectl rollout restart`, the old and new pods briefly overlap and both grab fresh iterators, so alerting-service ended up firing duplicate Slack alerts for the same record. Fixed with in-memory dedup keyed on sequence number (last 500, deque + set) rather than a cross-process solution like a DynamoDB conditional write — a single in-memory cache is enough at this scale, and it doesn't need to survive a pod crash, since crashed pods don't overlap with anything else.
+
+**Field naming doesn't match between services, on purpose.** ingestion-api writes camelCase fields (`deviceId`, `sensorType`) with an ISO timestamp string to Kinesis, since that's the natural shape for a Node/Express service. DynamoDB's schema is snake_case (`device_id`, `sensor_type`) with an epoch-second numeric range key, since that's a more normal DynamoDB convention. stream-processor does the translation in `process_record()` rather than forcing one service's naming onto the other.
 
 ## Stack
 
-Terraform, AWS VPC/EKS/ECR/DynamoDB/Kinesis, Node.js (Express), Python, Docker, kubectl.
-
-Helm, ArgoCD, and Prometheus/Grafana are planned next steps, not yet in place.
+Terraform, AWS VPC/EKS/ECR/Kinesis/DynamoDB/IRSA, Node.js (Express), Python, Docker, kubectl, Slack webhooks.
