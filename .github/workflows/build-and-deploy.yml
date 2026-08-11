@@ -1,0 +1,59 @@
+name: Build and Push Images
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'services/**'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/iot-streaming-github-actions-role
+          aws-region: ap-northeast-2
+
+      - name: Log in to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and Push Images
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          SERVICES=("ingestion-api" "read-api" "stream-processor" "alerting-service")
+          for SERVICE in "${SERVICES[@]}"; do
+            echo "Building $SERVICE..."
+            docker build -t $ECR_REGISTRY/iot-streaming-platform/$SERVICE:$IMAGE_TAG -t $ECR_REGISTRY/iot-streaming-platform/$SERVICE:latest ./services/$SERVICE
+            docker push $ECR_REGISTRY/iot-streaming-platform/$SERVICE:$IMAGE_TAG
+            docker push $ECR_REGISTRY/iot-streaming-platform/$SERVICE:latest
+          done
+
+      - name: Update Manifests Repo
+        env:
+          GH_PAT: ${{ secrets.MANIFESTS_REPO_PAT }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git clone https://${GH_PAT}@github.com/heeyeon-yang/iot-streaming-platform-manifests.git
+          cd iot-streaming-platform-manifests
+          
+          SERVICES=("ingestion-api" "read-api" "stream-processor" "alerting-service")
+          for SERVICE in "${SERVICES[@]}"; do
+            kustomize edit set image $ECR_REGISTRY/iot-streaming-platform/$SERVICE=:$IMAGE_TAG
+          done
+          
+          git commit -am "chore: update image tags to ${IMAGE_TAG:0:7}" || exit 0
+          git push origin main
