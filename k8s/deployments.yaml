@@ -16,7 +16,7 @@ spec:
       serviceAccountName: ingestion-api
       containers:
         - name: ingestion-api
-          image: 130954244866.dkr.ecr.ap-northeast-2.amazonaws.com/iot-streaming-platform/ingestion-api:latest
+          image: <AWS_ACCOUNT_ID>.dkr.ecr.ap-northeast-2.amazonaws.com/iot-streaming-platform/ingestion-api:latest
           ports:
             - containerPort: 3000
           envFrom:
@@ -48,7 +48,7 @@ spec:
       serviceAccountName: read-api
       containers:
         - name: read-api
-          image: 130954244866.dkr.ecr.ap-northeast-2.amazonaws.com/iot-streaming-platform/read-api:latest
+          image: <AWS_ACCOUNT_ID>.dkr.ecr.ap-northeast-2.amazonaws.com/iot-streaming-platform/read-api:latest
           ports:
             - containerPort: 3001
           envFrom:
@@ -80,7 +80,7 @@ spec:
       serviceAccountName: stream-processor
       containers:
         - name: stream-processor
-          image: 130954244866.dkr.ecr.ap-northeast-2.amazonaws.com/iot-streaming-platform/stream-processor:latest
+          image: <AWS_ACCOUNT_ID>.dkr.ecr.ap-northeast-2.amazonaws.com/iot-streaming-platform/stream-processor:latest
           envFrom:
             - configMapRef:
                 name: iot-streaming-config
@@ -110,7 +110,7 @@ spec:
       serviceAccountName: alerting-service
       containers:
         - name: alerting-service
-          image: 130954244866.dkr.ecr.ap-northeast-2.amazonaws.com/iot-streaming-platform/alerting-service:latest
+          image: <AWS_ACCOUNT_ID>.dkr.ecr.ap-northeast-2.amazonaws.com/iot-streaming-platform/alerting-service:latest
           envFrom:
             - configMapRef:
                 name: iot-streaming-config
