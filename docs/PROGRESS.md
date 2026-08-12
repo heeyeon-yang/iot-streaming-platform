@@ -65,3 +65,17 @@
 - namespace.yaml이 없어서 kubectl create namespace 수동 실행 필요했음 (다음에 k8s/에 추가 고려)
 - DynamoDB state 분리는 보류. 테스트 데이터라 재시딩으로 충분
 - simulator.sh 재시딩 후 read-api 조회 정상 (38건)
+
+## 2026-08-12 (수)
+- **ArgoCD 배포 및 이슈 트러블슈팅**
+  - ArgoCD 설치 중 `application-controller`가 `Pending` 상태로 고립되는 현상 발생.
+  - `describe` 확인 결과 `Too many pods` 에러 확인. (CPU/RAM 부족이 아닌 `t3.small` 노드당 Max Pods(11개) 제한에 걸림)
+  - `rollout restart` 관련해서 발생했던 중복 ReplicaSet 정리 완료 (`kubectl rollout undo`).
+  - 리소스 절약을 위해 경량화 적용: 불필요한 `dex-server`, `notifications`, `applicationset` 제외 및 `argocd-cm` 패치.
+
+- **다음 작업할 내용 (EKS 재배포 후)**
+  1. `terraform apply`로 인프라 재구성.
+  2. 노드 스펙 조정 또는 `desired_size=2`로 노드 확장 (파드 수 용량 확보).
+  3. Manifest 반영 시 `serviceaccounts.yaml`, `deployments.yaml` 이미지 태그 치환(`sed`) 진행.
+  4. ArgoCD 재배포 후 `application-controller` 정상 작동(`Running`) 확인.
+  5. `argocd/application.yaml` 적용하여 GitOps 파이프라인 연결 테스트.
