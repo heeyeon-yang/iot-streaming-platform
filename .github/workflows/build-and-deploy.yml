@@ -29,7 +29,7 @@ jobs:
 
       - name: Build and Push Images
         env:
-          ECR_REGISTRY: ${{ steps.login-ecr.registry }}
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
           SERVICES=("ingestion-api" "read-api" "stream-processor" "alerting-service")
@@ -42,18 +42,22 @@ jobs:
 
       - name: Update Manifests Repo
         env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           GH_PAT: ${{ secrets.MANIFESTS_REPO_PAT }}
+          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git clone https://${GH_PAT}@github.com/heeyeon-yang/iot-streaming-platform-manifests.git
           cd iot-streaming-platform-manifests
-          
+
+          sed -i "s|<AWS_ACCOUNT_ID>|${AWS_ACCOUNT_ID}|g" base/kustomization.yaml base/serviceaccounts.yaml
+
           SERVICES=("ingestion-api" "read-api" "stream-processor" "alerting-service")
           for SERVICE in "${SERVICES[@]}"; do
             kustomize edit set image $ECR_REGISTRY/iot-streaming-platform/$SERVICE=:$IMAGE_TAG
           done
-          
+
           git commit -am "chore: update image tags to ${IMAGE_TAG:0:7}" || exit 0
           git push origin main
