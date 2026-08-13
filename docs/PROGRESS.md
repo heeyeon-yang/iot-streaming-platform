@@ -79,3 +79,9 @@
   3. Manifest 반영 시 `serviceaccounts.yaml`, `deployments.yaml` 이미지 태그 치환(`sed`) 진행.
   4. ArgoCD 재배포 후 `application-controller` 정상 작동(`Running`) 확인.
   5. `argocd/application.yaml` 적용하여 GitOps 파이프라인 연결 테스트.
+
+## 2026-08-13 (목)
+- **EKS 노드 파드 용량 제한 해결 (`allocatable.pods` 확장)**
+  - ArgoCD 설치 과정에서 `t3.small` 노드의 기본 파드 제한(11개)으로 `Too many pods` 에러 발생.
+  - AWS VPC CNI `Prefix Delegation` 설정 적용 (`ENABLE_PREFIX_DELEGATION=true`, `WARM_PREFIX_TARGET=1`).
+  - `aws-node` DaemonSet 재시작 및 반영 완료. 노드당 최대 파드 수 110개로 확장 확인.
