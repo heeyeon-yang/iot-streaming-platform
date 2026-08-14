@@ -85,3 +85,9 @@
   - ArgoCD 설치 과정에서 `t3.small` 노드의 기본 파드 제한(11개)으로 `Too many pods` 에러 발생.
   - AWS VPC CNI `Prefix Delegation` 설정 적용 (`ENABLE_PREFIX_DELEGATION=true`, `WARM_PREFIX_TARGET=1`).
   - `aws-node` DaemonSet 재시작 및 반영 완료. 노드당 최대 파드 수 110개로 확장 확인.
+
+## 2026-08-14 (금)
+- CI/CD OIDC 파이프라인 디버깅
+  - `AWS_ACCOUNT_ID` Secret 값 정상 동작 확인 (`Debug Role ARN` 스텝 마스킹 출력 확인)
+  - OIDC AssumeRole 권한 에러(`sts:AssumeRoleWithWebIdentity`) 발생으로 보류
+  - 추후 IAM Role Trust Policy 조건 및 OIDC Provider 설정 재검토 필요
