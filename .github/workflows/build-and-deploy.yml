@@ -56,6 +56,7 @@ jobs:
           cd iot-streaming-platform-manifests
 
           sed -i "s|<AWS_ACCOUNT_ID>|${AWS_ACCOUNT_ID}|g" base/kustomization.yaml base/serviceaccounts.yaml
+          cd base
 
           SERVICES=("ingestion-api" "read-api" "stream-processor" "alerting-service")
           for SERVICE in "${SERVICES[@]}"; do
