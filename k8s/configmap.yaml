@@ -1,9 +1,0 @@
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: iot-streaming-config
-  namespace: iot-streaming
-data:
-  AWS_REGION: "ap-northeast-2"
-  KINESIS_STREAM_NAME: "iot-sensor-data"
-  DYNAMODB_TABLE_NAME: "sensor-readings"
