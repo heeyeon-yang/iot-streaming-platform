@@ -56,3 +56,8 @@ venv/
 .env
 .env.local
 k8s/secret-alerting.yaml
+cloudtrail.json
+job*.log
+trust-policy.json
+*.tfplan
+tfplan
