@@ -91,3 +91,15 @@
   - `AWS_ACCOUNT_ID` Secret 값 정상 동작 확인 (`Debug Role ARN` 스텝 마스킹 출력 확인)
   - OIDC AssumeRole 권한 에러(`sts:AssumeRoleWithWebIdentity`) 발생으로 보류
   - 추후 IAM Role Trust Policy 조건 및 OIDC Provider 설정 재검토 필요
+
+## ArgoCD 배포 검증 (해결됨)
+- application.yaml 적용 후 SYNC/HEALTH 계속 Unknown, 파드 안 뜸
+  -> core-install은 default AppProject를 자동 생성 안 함. 수동 생성 후 정상 sync
+- 파드 이미지가 <AWS_ACCOUNT_ID>...:latest로 그대로 뜸
+  -> base/deployments.yaml에 <AWS_ACCOUNT_ID>가 리터럴로 박혀 있어서 kustomize images 트랜스포머 name 매칭 실패. 실제 계정 ID로 치환
+- alerting-service가 secret "alerting-secrets" not found로 계속 실패
+  -> secret-alerting.yaml이 kustomization.yaml resources 목록에서 누락돼 있었음. 추가해서 해결
+  -> 이 과정에서 secret-alerting.yaml에 Slack Webhook 실제 값이 base64로 git에 커밋된 상태였던 것 발견 (public repo). Slack에서 webhook 재발급 완료
+- 새 파드가 Too many pods로 계속 Pending
+  -> 구버전 ReplicaSet이 슬롯 점유 중 + t3.small 파드 상한 근접. 구버전 ReplicaSet 스케일다운, 미사용 argocd-applicationset-controller도 스케일다운, prefix delegation 재적용으로 해결
+- 네 서비스 전부 Running 확인, Application Synced/Healthy 확인
