@@ -19,6 +19,17 @@ module "eks" {
       min_size       = 1
       max_size       = 3
       desired_size   = 1
+
+      # v20 모듈에서 Custom User Data 주입하여 kubelet max-pods 재정의
+      user_data_template_path = ""
+      pre_bootstrap_user_data = <<-EOT
+        #!/bin/bash
+        set -ex
+        cat << 'USERDATA' > /etc/eks/bootstrap.sh
+        #!/bin/bash
+        /etc/eks/bootstrap.sh --use-max-pods false --kubelet-extra-args '--max-pods=110' "$@"
+        USERDATA
+      EOT
     }
   }
 
