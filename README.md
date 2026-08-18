@@ -31,7 +31,11 @@ Devices themselves are simulated with a local script (`simulator.sh`) — no rea
 
 Terraform covers VPC, EKS (managed node group, t3.small, 1–3 nodes), Kinesis, DynamoDB, and IRSA roles — each service gets IAM permissions scoped to only what it needs instead of one shared node role. ECR lives in its own Terraform directory with separate state, so the compute layer (VPC, EKS) can be destroyed and rebuilt every session without rebuilding container images each time.
 
-Kubernetes manifests (service accounts, deployments, services, configmap) are plain YAML applied by hand for now. Namespace creation is still a manual `kubectl create namespace` step rather than its own manifest.
+Kubernetes manifests live in a separate repo, [iot-streaming-platform-manifests](https://github.com/heeyeon-yang/iot-streaming-platform-manifests), managed with Kustomize and deployed by ArgoCD rather than applied by hand. Namespace creation is still a manual `kubectl create namespace` step rather than its own manifest.
+
+## Deployment
+
+A push to `main` that touches `services/**` triggers GitHub Actions, which builds and pushes the four images to ECR (authenticating via OIDC, no long-lived AWS keys in GitHub) and bumps the image tags in the manifests repo. ArgoCD watches that repo and reconciles the cluster on every change, with prune and selfHeal on so the cluster can't silently drift from what's committed. Full writeup in `docs/05-cicd-design.md`.
 
 ## Why some things are built the way they are
 
@@ -41,4 +45,4 @@ Kubernetes manifests (service accounts, deployments, services, configmap) are pl
 
 ## Stack
 
-Terraform, AWS VPC/EKS/ECR/Kinesis/DynamoDB/IRSA, Node.js (Express), Python, Docker, kubectl, Slack webhooks.
+Terraform, AWS VPC/EKS/ECR/Kinesis/DynamoDB/IRSA, Node.js (Express), Python, Docker, Kustomize, ArgoCD, GitHub Actions (OIDC), Slack webhooks.
