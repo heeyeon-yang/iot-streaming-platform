@@ -1,5 +1,4 @@
-
-## Milestone 3 디버깅 (이어서 진행, 해결됨)
+## Milestone 3 디버깅 (이어서 진행)
 - ECR push 중 네트워크 끊김 발생함 (프록시 환경 특성으로 추정) -> 재시도하면 기존 레이어는 스킵되고 이어짐, 별도 조치 불필요
 - print 로그가 kubectl logs에 하나도 안 찍히는 문제
   -> Dockerfile에 PYTHONUNBUFFERED=1 빠져있었음. 컨테이너 환경에서 stdout이 블록 버퍼링되면서 로그가 버퍼에 쌓이기만 하고 안 나갔던 것
@@ -31,7 +30,7 @@
   - terraform-ecr/ 는 프로젝트 끝날 때까지 destroy 하지 않음
 - 코드 안 바뀐 서비스는 이제 재빌드/재푸시 불필요 (이미지가 ECR에 계속 남아있음)
 
-## Alerting 중복 알림 dedup 처리 (해결됨)
+## Alerting 중복 알림 dedup 처리
 - 원인: kubectl rollout restart 시 old/new 파드가 잠깐 동시에 떠 있는 동안,
   둘 다 독립적으로 LATEST shard iterator를 얻어와서 겹치는 시간대 record를 각자 처리 -> 중복 알림
 - 해결: alerting-service main.py에 SequenceNumber 기준 in-memory dedup 추가
@@ -40,7 +39,7 @@
 - 완전한 크로스 프로세스 dedup(DynamoDB 조건부 쓰기)은 포트폴리오 규모에서 과함 -> 인메모리 방식으로 충분하다고 판단
 - 검증: temperature=85 수동 전송 -> 경고 로그 1회만 출력 확인
 
-## Slack Webhook 연동 (해결됨)
+## Slack Webhook 연동
 - Slack app 생성 -> Incoming Webhooks 활성화 -> #iot-alerts 채널에 연동
 - k8s/secret-alerting.yaml의 SLACK_WEBHOOK_URL을 실제 값으로 교체 (base64 -w 0 사용, 개행 포함 시 sed 깨지는 이슈 있었음)
 - secret-alerting.yaml은 git에 커밋된 적 있었으나 placeholder 값만 올라가 있었음 확인 후
@@ -51,7 +50,7 @@
 - 파이프라인 전체(ingestion-api -> Kinesis -> stream-processor -> DynamoDB -> alerting-service -> Slack) 정상 동작 확인
 - ECR state 분리로 세션 재시작 루틴 안정화
 
-## read-api DynamoDB 연동 (해결됨)
+## read-api DynamoDB 연동
 - 기존 코드는 mock 데이터 반환하는 placeholder 상태였음 (대시보드 프론트엔드 개발용으로 의도된 것)
 - @aws-sdk/client-dynamodb, @aws-sdk/lib-dynamodb 추가
 - /readings: deviceId 쿼리 파라미터 있으면 QueryCommand, 없으면 ScanCommand
@@ -66,40 +65,29 @@
 - DynamoDB state 분리는 보류. 테스트 데이터라 재시딩으로 충분
 - simulator.sh 재시딩 후 read-api 조회 정상 (38건)
 
-## 2026-08-12 (수)
-- **ArgoCD 배포 및 이슈 트러블슈팅**
-  - ArgoCD 설치 중 `application-controller`가 `Pending` 상태로 고립되는 현상 발생.
-  - `describe` 확인 결과 `Too many pods` 에러 확인. (CPU/RAM 부족이 아닌 `t3.small` 노드당 Max Pods(11개) 제한에 걸림)
-  - `rollout restart` 관련해서 발생했던 중복 ReplicaSet 정리 완료 (`kubectl rollout undo`).
-  - 리소스 절약을 위해 경량화 적용: 불필요한 `dex-server`, `notifications`, `applicationset` 제외 및 `argocd-cm` 패치.
+## 2026-08-12
+- ArgoCD 설치 중 application-controller가 Pending 상태로 고립 -> describe 확인해보니 Too many pods 에러 (CPU/RAM 부족이 아니라 t3.small 노드당 max pods(11개) 제한)
+- rollout restart 하다 생긴 중복 ReplicaSet 정리 (kubectl rollout undo)
+- 리소스 절약 위해 dex-server, notifications, applicationset 제외하고 argocd-cm 패치
 
-- **다음 작업할 내용 (EKS 재배포 후)**
-  1. `terraform apply`로 인프라 재구성.
-  2. 노드 스펙 조정 또는 `desired_size=2`로 노드 확장 (파드 수 용량 확보).
-  3. Manifest 반영 시 `serviceaccounts.yaml`, `deployments.yaml` 이미지 태그 치환(`sed`) 진행.
-  4. ArgoCD 재배포 후 `application-controller` 정상 작동(`Running`) 확인.
-  5. `argocd/application.yaml` 적용하여 GitOps 파이프라인 연결 테스트.
+## 2026-08-13
+- t3.small 노드 파드 제한(11개)로 ArgoCD 설치 중 계속 Too many pods 발생
+  -> AWS VPC CNI Prefix Delegation 적용 (ENABLE_PREFIX_DELEGATION=true, WARM_PREFIX_TARGET=1), aws-node 재시작 후 노드당 max pods 110개로 확장 확인
 
-## 2026-08-13 (목)
-- **EKS 노드 파드 용량 제한 해결 (`allocatable.pods` 확장)**
-  - ArgoCD 설치 과정에서 `t3.small` 노드의 기본 파드 제한(11개)으로 `Too many pods` 에러 발생.
-  - AWS VPC CNI `Prefix Delegation` 설정 적용 (`ENABLE_PREFIX_DELEGATION=true`, `WARM_PREFIX_TARGET=1`).
-  - `aws-node` DaemonSet 재시작 및 반영 완료. 노드당 최대 파드 수 110개로 확장 확인.
+## 2026-08-14
+- CI/CD OIDC 파이프라인 디버깅. AWS_ACCOUNT_ID secret 값은 정상인데 sts:AssumeRoleWithWebIdentity 에러로 보류
+- IAM Role Trust Policy 조건이랑 OIDC Provider 설정 재검토 필요로 남겨둠
 
-## 2026-08-14 (금)
-- CI/CD OIDC 파이프라인 디버깅
-  - `AWS_ACCOUNT_ID` Secret 값 정상 동작 확인 (`Debug Role ARN` 스텝 마스킹 출력 확인)
-  - OIDC AssumeRole 권한 에러(`sts:AssumeRoleWithWebIdentity`) 발생으로 보류
-  - 추후 IAM Role Trust Policy 조건 및 OIDC Provider 설정 재검토 필요
-
-## ArgoCD 배포 검증 (해결됨)
-- application.yaml 적용 후 SYNC/HEALTH 계속 Unknown, 파드 안 뜸
-  -> core-install은 default AppProject를 자동 생성 안 함. 수동 생성 후 정상 sync
-- 파드 이미지가 <AWS_ACCOUNT_ID>...:latest로 그대로 뜸
-  -> base/deployments.yaml에 <AWS_ACCOUNT_ID>가 리터럴로 박혀 있어서 kustomize images 트랜스포머 name 매칭 실패. 실제 계정 ID로 치환
+## ArgoCD 배포 검증
+- application.yaml 적용해도 SYNC/HEALTH 계속 Unknown, 파드 안 뜸 -> core-install은 default AppProject 자동 생성 안 함. 수동 생성 후 정상 sync
+- 파드 이미지가 <AWS_ACCOUNT_ID>...:latest로 그대로 뜸 -> base/deployments.yaml에 <AWS_ACCOUNT_ID>가 리터럴로 박혀 있어서 kustomize images 트랜스포머 name 매칭 실패. 실제 계정 ID로 치환
 - alerting-service가 secret "alerting-secrets" not found로 계속 실패
   -> secret-alerting.yaml이 kustomization.yaml resources 목록에서 누락돼 있었음. 추가해서 해결
   -> 이 과정에서 secret-alerting.yaml에 Slack Webhook 실제 값이 base64로 git에 커밋된 상태였던 것 발견 (public repo). Slack에서 webhook 재발급 완료
-- 새 파드가 Too many pods로 계속 Pending
-  -> 구버전 ReplicaSet이 슬롯 점유 중 + t3.small 파드 상한 근접. 구버전 ReplicaSet 스케일다운, 미사용 argocd-applicationset-controller도 스케일다운, prefix delegation 재적용으로 해결
+- 새 파드가 Too many pods로 계속 Pending -> 구버전 ReplicaSet이 슬롯 점유 중 + t3.small 파드 상한 근접. 구버전 ReplicaSet 스케일다운, 미사용 argocd-applicationset-controller도 스케일다운, prefix delegation 재적용으로 해결
 - 네 서비스 전부 Running 확인, Application Synced/Healthy 확인
+
+## CI/CD OIDC 및 kustomize image path 수정
+- 8/14에 보류했던 sts:AssumeRoleWithWebIdentity 에러 -> IAM Role Trust Policy의 sub claim 조건이 계정/repo ID 포함하도록 업데이트 (terraform-ecr/github-oidc.tf 반영)해서 해결
+- run #4(트리거용 커밋)에서 OIDC는 통과했는데 "Update Manifests Repo" 스텝의 kustomize edit set image에서 실패 -> 이미지 경로 수정
+- run #5에서 build-and-deploy.yml 전체 성공 확인 (ECR push -> manifests repo 이미지 태그 커밋까지 end-to-end)
