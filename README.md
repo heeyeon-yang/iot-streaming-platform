@@ -31,7 +31,7 @@ Devices themselves are simulated with a local script (`simulator.sh`) — no rea
 
 Terraform covers VPC, EKS (managed node group, t3.small, 1–3 nodes), Kinesis, DynamoDB, and IRSA roles — each service gets IAM permissions scoped to only what it needs instead of one shared node role. ECR lives in its own Terraform directory with separate state, so the compute layer (VPC, EKS) can be destroyed and rebuilt every session without rebuilding container images each time.
 
-Kubernetes manifests live in a separate repo, [iot-streaming-platform-manifests](https://github.com/heeyeon-yang/iot-streaming-platform-manifests), managed with Kustomize and deployed by ArgoCD rather than applied by hand. Namespace creation is still a manual `kubectl create namespace` step rather than its own manifest.
+Kubernetes manifests live in a separate repo, [iot-streaming-platform-manifests](https://github.com/heeyeon-yang/iot-streaming-platform-manifests), managed with Kustomize and deployed by ArgoCD rather than applied by hand, including namespace creation.
 
 ## Deployment
 
