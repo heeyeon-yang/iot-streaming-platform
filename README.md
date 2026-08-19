@@ -35,6 +35,10 @@ Kubernetes manifests live in a separate repo, [iot-streaming-platform-manifests]
 
 ## Deployment
 
+<p align="center">
+  <img src="docs/iot_cicd_diagram.png" alt="Deployment Pipeline Diagram" width="60%">
+</p>
+
 A push to `main` that touches `services/**` triggers GitHub Actions, which builds and pushes the four images to ECR (authenticating via OIDC, no long-lived AWS keys in GitHub) and bumps the image tags in the manifests repo. ArgoCD watches that repo and reconciles the cluster on every change, with prune and selfHeal on so the cluster can't silently drift from what's committed. Full writeup in `docs/05-cicd-design.md`.
 
 ## Why some things are built the way they are
