@@ -2,6 +2,8 @@
 
 IoT sensor data pipeline running on Kubernetes — devices push readings in, Kinesis moves them through, and four containerized services process, store, and alert on them. Built on AWS (ap-northeast-2) with Terraform.
 
+**Status:** Complete. All four services deploy through GitHub Actions and ArgoCD, and the full path (simulator, ingestion-api, Kinesis, stream-processor, DynamoDB, read-api, plus Slack alerts) works end to end.
+
 ## Why I built this
 
 QuizLab (Project 1) was built entirely on managed, serverless AWS — Lambda, RDS, ElastiCache. This project picks up what QuizLab didn't touch: containers, Kubernetes, and self-managed orchestration.
@@ -46,6 +48,15 @@ A push to `main` that touches `services/**` triggers GitHub Actions, which build
 **No shared consumer coordination on Kinesis.** stream-processor and alerting-service both read from LATEST independently. During a `kubectl rollout restart`, the old and new pods briefly overlap and both grab fresh iterators, so alerting-service ended up firing duplicate Slack alerts for the same record. Fixed with in-memory dedup keyed on sequence number (last 500, deque + set) rather than a cross-process solution like a DynamoDB conditional write — a single in-memory cache is enough at this scale, and it doesn't need to survive a pod crash, since crashed pods don't overlap with anything else.
 
 **Field naming doesn't match between services, on purpose.** ingestion-api writes camelCase fields (`deviceId`, `sensorType`) with an ISO timestamp string to Kinesis, since that's the natural shape for a Node/Express service. DynamoDB's schema is snake_case (`device_id`, `sensor_type`) with an epoch-second numeric range key, since that's a more normal DynamoDB convention. stream-processor does the translation in `process_record()` rather than forcing one service's naming onto the other.
+
+**Pod density, not CPU or memory, was the limit on t3.small.** The default VPC CNI caps a t3.small node at 11 pods, so ArgoCD's application-controller sat Pending with "Too many pods" while the node had CPU and RAM to spare. Rather than move to larger instances, I enabled VPC CNI prefix delegation, raised kubelet max-pods to 110 through the node group's user data, and ran ArgoCD as a core-install (no UI or API server) to leave slots for the services. All config, no added instance cost.
+
+## Limitations
+
+- One Kinesis shard (1,000 records/s write cap) and a 1 to 3 node t3.small group. Sized for a demo and not load tested, so there are no throughput or latency numbers here.
+- ArgoCD polls the manifests repo on its default interval instead of receiving a webhook (core-install has no API server to receive one), so a change lands a few minutes after the push.
+- No metrics stack (Prometheus/Grafana) and no automated tests.
+- The Slack webhook secret is created by hand with `kubectl` and kept out of git, not managed by a secrets service.
 
 ## Stack
 
